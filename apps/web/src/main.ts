@@ -1,4 +1,5 @@
 import "./checkin";
+import "./listen";
 import { startRegistration } from "@simplewebauthn/browser";
 
 const input = document.querySelector<HTMLInputElement>("#code")!;
