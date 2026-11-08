@@ -12,7 +12,7 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      input: { main: "index.html", professor: "professor.html", dashboard: "dashboard.html", prof: "prof.html" },
+      input: { main: "index.html", prof: "prof.html" },
     },
   },
 });
