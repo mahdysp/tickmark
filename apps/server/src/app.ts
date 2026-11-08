@@ -1,5 +1,7 @@
 import Fastify from "fastify";
 import { pool } from "./db.js";
+import { sessionRoutes } from "./routes/sessions.js";
+import { attendanceRoutes } from "./routes/attendance.js";
 import { enrollmentRoutes } from "./routes/enrollment.js";
 
 export function buildApp() {
@@ -16,6 +18,8 @@ export function buildApp() {
   });
 
   app.register(enrollmentRoutes);
+  app.register(sessionRoutes);
+  app.register(attendanceRoutes);
 
   return app;
 }
