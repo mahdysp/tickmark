@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TickMark – Professor</title>
+  </head>
+  <body style="font-family: sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem">
+    <h1>TickMark</h1>
+
+    <section id="login">
+      <h2>Professor login</h2>
+      <input id="uid" placeholder="university id" autocomplete="username" style="width: 100%; padding: 0.6rem; font-size: 1.1rem" />
+      <input id="pw" type="password" placeholder="password" autocomplete="current-password" style="width: 100%; margin-top: 0.5rem; padding: 0.6rem; font-size: 1.1rem" />
+      <button id="loginBtn" style="margin-top: 0.8rem; padding: 0.7rem 1.2rem; font-size: 1.1rem">Log in</button>
+      <p id="loginErr" style="color: #b00020"></p>
+    </section>
+
+    <section id="app" hidden>
+      <p>Signed in as <b id="who"></b> <button id="logout">Log out</button></p>
+
+      <h2>Courses</h2>
+      <ul id="courses"></ul>
+
+      <div id="session" hidden>
+        <h2 id="sessionTitle"></h2>
+        <button id="pulse" style="padding: 0.9rem 1.4rem; font-size: 1.2rem">Start attendance pulse (45 s)</button>
+        <button id="end" style="padding: 0.9rem 1.4rem; font-size: 1.2rem">End session</button>
+        <pre id="pulseStatus" style="white-space: pre-wrap"></pre>
+        <h3 id="summary" style="font-size: 1.1rem"></h3>
+        <p id="alert" style="color: #b00020; font-weight: bold"></p>
+        <table style="width: 100%; border-collapse: collapse">
+          <thead>
+            <tr style="text-align: left; border-bottom: 2px solid #ccc">
+              <th>ID</th><th>Name</th><th>Pulses</th><th>%</th><th>Offline records</th><th>Review</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <script type="module" src="/src/prof.ts"></script>
+  </body>
+</html>
