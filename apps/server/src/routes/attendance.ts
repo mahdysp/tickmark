@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { verifyAuthenticationResponse } from "@simplewebauthn/server";
 import { pool } from "../db.js";
-import { rpID, origins } from "../config.js";
+import { rpID, origins, offlineQuota } from "../config.js";
 import { SLOT_SECONDS, checkMac, parseToken } from "../lib/token.js";
 
 const ONLINE_MAX_MS = 2 * 60 * 1000;
@@ -68,6 +68,22 @@ export async function attendanceRoutes(app: FastifyInstance) {
     }
     if (!v.verified) return bad("not_verified");
 
+    // Offline quota: number of sessions of this course where the student has offline records
+    if (mode === "offline") {
+      const q = await pool.query(
+        `select count(distinct a.class_session_id)::int as used,
+                bool_or(a.class_session_id = $3::uuid) as counted_here
+           from attendance_records a
+           join class_sessions s on s.id = a.class_session_id
+          where s.course_id = $1::uuid and a.student_id = $2::uuid and a.mode = 'offline'`,
+        [session.course_id, cred.user_id, session.id],
+      );
+      const { used, counted_here } = q.rows[0];
+      if (!counted_here && used >= offlineQuota) {
+        return bad("offline_quota_exceeded", 403);
+      }
+    }
+
     const client = await pool.connect();
     try {
       await client.query("begin");
@@ -77,10 +93,10 @@ export async function attendanceRoutes(app: FastifyInstance) {
       ]);
       await client.query(
         `insert into attendance_records
-           (class_session_id, student_id, credential_id, token, assertion, mode)
-         values ($1, $2, $3, $4, $5, $6)
+           (class_session_id, student_id, credential_id, token, assertion, mode, slot_time)
+         values ($1, $2, $3, $4, $5, $6, to_timestamp($7::double precision / 1000))
          on conflict (class_session_id, student_id, token) do nothing`,
-        [session.id, cred.user_id, cred.id, token, JSON.stringify(assertion), mode],
+        [session.id, cred.user_id, cred.id, token, JSON.stringify(assertion), mode, slotMs],
       );
       await client.query("commit");
     } catch (e) {

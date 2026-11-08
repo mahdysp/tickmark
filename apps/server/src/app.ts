@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import { pool } from "./db.js";
+import { reportRoutes } from "./routes/report.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
 import { sessionRoutes } from "./routes/sessions.js";
 import { attendanceRoutes } from "./routes/attendance.js";
@@ -22,6 +23,7 @@ export function buildApp() {
   app.register(sessionRoutes);
   app.register(attendanceRoutes);
   app.register(dashboardRoutes);
+  app.register(reportRoutes);
 
   return app;
 }
