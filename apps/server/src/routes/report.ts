@@ -1,3 +1,4 @@
+import { staffFor } from "../lib/guard.js";
 import type { FastifyInstance } from "fastify";
 import { pool } from "../db.js";
 import { adminOnly } from "../lib/auth.js";
@@ -35,7 +36,7 @@ select u.university_id, u.full_name, ps.confirmed, ps.offline_records,
  order by u.university_id`;
 
 export async function reportRoutes(app: FastifyInstance) {
-  app.get("/admin/sessions/:id/report", { preHandler: adminOnly }, async (req, reply) => {
+  app.get("/admin/sessions/:id/report", { preHandler: staffFor("session") }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const exists = await pool.query("select 1 from class_sessions where id = $1", [id]);
     if (!exists.rowCount) return reply.code(404).send({ error: "unknown_session" });

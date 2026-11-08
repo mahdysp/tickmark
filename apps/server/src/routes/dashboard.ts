@@ -1,16 +1,17 @@
+import { staffFor } from "../lib/guard.js";
 import type { FastifyInstance } from "fastify";
 import { pool } from "../db.js";
 import { adminOnly } from "../lib/auth.js";
 
 export async function dashboardRoutes(app: FastifyInstance) {
-  app.post("/admin/courses/:id/capacity", { preHandler: adminOnly }, async (req) => {
+  app.post("/admin/courses/:id/capacity", { preHandler: staffFor("course") }, async (req) => {
     const { id } = req.params as { id: string };
     const { roomCapacity } = req.body as { roomCapacity: number };
     await pool.query("update courses set room_capacity = $1 where id = $2", [roomCapacity, id]);
     return { ok: true };
   });
 
-  app.get("/admin/sessions/:id/summary", { preHandler: adminOnly }, async (req, reply) => {
+  app.get("/admin/sessions/:id/summary", { preHandler: staffFor("session") }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const exists = await pool.query("select 1 from class_sessions where id = $1", [id]);
     if (!exists.rowCount) return reply.code(404).send({ error: "unknown_session" });

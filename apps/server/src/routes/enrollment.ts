@@ -19,7 +19,7 @@ async function loadCode(code: string) {
 
 export async function enrollmentRoutes(app: FastifyInstance) {
   const admin = async (req: any, reply: any) => {
-    if (req.headers["x-admin-token"] !== process.env.ADMIN_TOKEN) {
+    if (!process.env.ADMIN_TOKEN || req.headers["x-admin-token"] !== process.env.ADMIN_TOKEN) {
       return reply.code(401).send({ error: "unauthorized" });
     }
   };
