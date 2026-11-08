@@ -19,7 +19,7 @@ startBtn.addEventListener("click", async () => {
     while (Date.now() < end) {
       const token = await makeToken(key, shortId);
       statusEl.textContent = `Pulse: transmission ${++n}\n${token}`;
-      await playToken(token);
+      await playToken(token, 50);
       await new Promise((r) => setTimeout(r, 300));
     }
     statusEl.textContent = `Pulse finished (${n} transmissions).`;
