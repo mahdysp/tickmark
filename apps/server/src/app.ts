@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import { pool } from "./db.js";
+import { adminRoutes } from "./routes/admin.js";
 import cookie from "@fastify/cookie";
 import { authRoutes } from "./routes/auth.js";
 import { reportRoutes } from "./routes/report.js";
@@ -28,6 +29,7 @@ export function buildApp() {
   app.register(dashboardRoutes);
   app.register(reportRoutes);
   app.register(authRoutes);
+  app.register(adminRoutes);
 
   return app;
 }

@@ -1,3 +1,4 @@
+import { adminOnly } from "../lib/auth.js";
 import type { FastifyInstance } from "fastify";
 import { randomBytes } from "node:crypto";
 import {
@@ -24,7 +25,7 @@ export async function enrollmentRoutes(app: FastifyInstance) {
     }
   };
 
-  app.post("/admin/users", { preHandler: admin }, async (req) => {
+  app.post("/admin/users", { preHandler: adminOnly }, async (req) => {
     const { universityId, fullName, role } = req.body as {
       universityId: string;
       fullName: string;
@@ -37,7 +38,7 @@ export async function enrollmentRoutes(app: FastifyInstance) {
     return rows[0];
   });
 
-  app.post("/admin/users/:id/enrollment-code", { preHandler: admin }, async (req) => {
+  app.post("/admin/users/:id/enrollment-code", { preHandler: adminOnly }, async (req) => {
     const { id } = req.params as { id: string };
     const code = randomBytes(4).toString("hex");
     await pool.query(
