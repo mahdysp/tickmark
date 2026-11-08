@@ -7,6 +7,29 @@
   </head>
   <body style="font-family: sans-serif; max-width: 480px; margin: 2rem auto; padding: 0 1rem">
     <h1>TickMark</h1>
+
+    <h2>1. Enroll this device</h2>
+    <input id="code" placeholder="enrollment code" style="width: 100%; padding: 0.6rem; font-size: 1.1rem" />
+    <button id="enroll" style="margin-top: 0.8rem; padding: 0.7rem 1.2rem; font-size: 1.1rem">Register this device</button>
+    <pre id="out" style="white-space: pre-wrap"></pre>
+
+    <h2>2. Check in</h2>
+    <input id="token" placeholder="token (a1b2c3.xxxxxx.yyyyyyyy)" style="width: 100%; padding: 0.6rem; font-size: 1.1rem" />
+    <button id="checkin" style="margin-top: 0.8rem; padding: 0.7rem 1.2rem; font-size: 1.1rem">Check in</button>
+    <button id="sync" style="margin-top: 0.8rem; padding: 0.7rem 1.2rem; font-size: 1.1rem">Sync now</button>
+    <pre id="status" style="white-space: pre-wrap"></pre>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html><!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TickMark</title>
+  </head>
+  <body style="font-family: sans-serif; max-width: 480px; margin: 2rem auto; padding: 0 1rem">
+    <h1>TickMark</h1>
     <p>Enter your enrollment code to register this phone.</p>
     <input id="code" placeholder="enrollment code" style="width: 100%; padding: 0.6rem; font-size: 1.1rem" />
     <button id="enroll" style="margin-top: 0.8rem; padding: 0.7rem 1.2rem; font-size: 1.1rem">Register this device</button>

@@ -1,3 +1,4 @@
+import "./checkin";
 import { startRegistration } from "@simplewebauthn/browser";
 
 const input = document.querySelector<HTMLInputElement>("#code")!;
@@ -24,6 +25,7 @@ btn.addEventListener("click", async () => {
 
     out.textContent = "Verifying...";
     const verRes = await post("/enroll/verify", { code, response });
+    if (verRes.ok) localStorage.setItem("credentialId", response.id);
     out.textContent = verRes.ok
       ? "Registered successfully."
       : "Failed: " + (await verRes.text());
