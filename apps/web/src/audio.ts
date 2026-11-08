@@ -5,7 +5,7 @@ let g: any;
 let instance: number;
 
 // Use the same protocol you validated in the prototype tests.
-const protocol = () => g.ProtocolId.GGWAVE_PROTOCOL_AUDIBLE_FAST;
+const protocol = () => g.ProtocolId.GGWAVE_PROTOCOL_ULTRASOUND_FAST;
 
 const convert = (src: any, Type: any) => {
   const buf = new ArrayBuffer(src.byteLength);
