@@ -1,4 +1,5 @@
 import { adminOnly } from "../lib/auth.js";
+import { adminOnly } from "../lib/auth.js";
 import type { FastifyInstance } from "fastify";
 import { randomBytes } from "node:crypto";
 import {
@@ -40,7 +41,7 @@ export async function enrollmentRoutes(app: FastifyInstance) {
 
   app.post("/admin/users/:id/enrollment-code", { preHandler: adminOnly }, async (req) => {
     const { id } = req.params as { id: string };
-    const code = randomBytes(4).toString("hex");
+    const code = randomBytes(6).toString("hex");
     await pool.query(
       "insert into enrollment_codes (code, user_id, expires_at) values ($1, $2, now() + interval '24 hours')",
       [code, id],

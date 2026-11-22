@@ -5,7 +5,9 @@ export const adminOnly = async (req: any, reply: any) => {
   if (expected && req.headers["x-admin-token"] === expected) return;
 
   const user = await currentStaff(req);
-  if (!user) return reply.code(401).send({ error: "unauthorized" });
-  if (user.role !== "admin") return reply.code(403).send({ error: "forbidden" });
-  req.user = user;
+  if (user?.role === "admin") {
+    req.user = user;
+    return;
+  }
+  return reply.code(401).send({ error: "unauthorized" });
 };

@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { randomBytes } from "node:crypto";
 import { pool } from "../db.js";
 import { adminOnly } from "../lib/auth.js";
 import { hashPassword } from "../lib/password.js";
@@ -7,43 +8,41 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get("/admin/users", { preHandler: adminOnly }, async (req) => {
     const { role } = req.query as { role?: string };
     const { rows } = await pool.query(
-      `select id, university_id, full_name, role, (password_hash is not null) as has_password
-         from users where ($1::text is null or role = $1)
-        order by university_id limit 500`,
+      `select id, university_id, full_name, role from users
+        where ($1::text is null or role = $1) order by university_id`,
       [role ?? null],
     );
     return { users: rows };
   });
 
-  app.post("/admin/professors", { preHandler: adminOnly }, async (req, reply) => {
-    const { universityId, fullName, password } = (req.body ?? {}) as {
-      universityId?: string;
-      fullName?: string;
-      password?: string;
-    };
-    if (!universityId?.trim() || !fullName?.trim()) {
+  app.post("/admin/people", { preHandler: adminOnly }, async (req, reply) => {
+    const { universityId, fullName, role, password } = (req.body ?? {}) as any;
+    const uid = String(universityId ?? "").trim();
+    const name = String(fullName ?? "").trim();
+    if (!uid || !name || !["student", "professor", "admin"].includes(role)) {
       return reply.code(400).send({ error: "bad_request" });
     }
-    if (typeof password !== "string" || password.length < 8) {
+    if (role !== "student" && (typeof password !== "string" || password.length < 8)) {
       return reply.code(400).send({ error: "weak_password" });
     }
+    const hash = role === "student" ? null : await hashPassword(password);
     try {
       const { rows } = await pool.query(
         `insert into users (university_id, full_name, role, password_hash)
-         values ($1, $2, 'professor', $3) returning id`,
-        [universityId.trim(), fullName.trim(), await hashPassword(password)],
+         values ($1, $2, $3, $4) returning id`,
+        [uid, name, role, hash],
       );
       return rows[0];
     } catch (e: any) {
-      if (e.code === "23505") return reply.code(409).send({ error: "university_id_taken" });
+      if (e.code === "23505") return reply.code(409).send({ error: "duplicate_university_id" });
       throw e;
     }
   });
 
   app.get("/admin/courses", { preHandler: adminOnly }, async () => {
     const { rows } = await pool.query(
-      `select c.id, c.code, c.title, c.room_capacity, u.full_name as professor_name,
-              (select count(*) from enrollments e where e.course_id = c.id)::int as enrolled
+      `select c.id, c.code, c.title, c.room_capacity, u.full_name as professor,
+              (select count(*) from enrollments e where e.course_id = c.id)::int as students
          from courses c join users u on u.id = c.professor_id
         order by c.created_at`,
     );
@@ -54,7 +53,11 @@ export async function adminRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     const { rows } = await pool.query(
       `select u.id, u.university_id, u.full_name,
-              exists (select 1 from credentials c where c.user_id = u.id and c.active) as has_device
+              exists(select 1 from credentials c
+                      where c.user_id = u.id and c.active) as has_device,
+              exists(select 1 from enrollment_codes k
+                      where k.user_id = u.id and k.used_at is null
+                        and k.expires_at > now()) as has_pending_code
          from enrollments e join users u on u.id = e.student_id
         where e.course_id = $1 order by u.university_id`,
       [id],
@@ -62,51 +65,51 @@ export async function adminRoutes(app: FastifyInstance) {
     return { students: rows };
   });
 
-  app.post("/admin/courses/:id/import-students", { preHandler: adminOnly }, async (req, reply) => {
+  app.post("/admin/courses/:id/import", { preHandler: adminOnly }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const { students } = (req.body ?? {}) as {
       students?: { universityId: string; fullName: string }[];
     };
-    if (!Array.isArray(students) || students.length === 0 || students.length > 1000) {
+    if (!Array.isArray(students) || students.length === 0 || students.length > 2000) {
       return reply.code(400).send({ error: "bad_request" });
     }
     const course = await pool.query("select 1 from courses where id = $1", [id]);
     if (!course.rowCount) return reply.code(404).send({ error: "unknown_course" });
 
-    let created = 0;
-    let enrolled = 0;
-    let skipped = 0;
+    const result = { created: 0, existing: 0, enrolled: 0, skipped: [] as string[] };
     const client = await pool.connect();
     try {
       await client.query("begin");
       for (const s of students) {
-        const uid = String(s?.universityId ?? "").trim();
-        const name = String(s?.fullName ?? "").trim();
+        const uid = String(s.universityId ?? "").trim();
+        const name = String(s.fullName ?? "").trim();
         if (!uid || !name) {
-          skipped++;
+          result.skipped.push(uid || "(empty)");
           continue;
         }
-        const ins = await client.query(
+        let r = await client.query(
           `insert into users (university_id, full_name, role) values ($1, $2, 'student')
            on conflict (university_id) do nothing returning id`,
           [uid, name],
         );
-        let userId: string | undefined = ins.rows[0]?.id;
-        if (userId) {
-          created++;
+        if (r.rowCount) {
+          result.created++;
         } else {
-          const ex = await client.query("select id, role from users where university_id = $1", [uid]);
-          if (ex.rows[0]?.role !== "student") {
-            skipped++;
+          r = await client.query(
+            "select id from users where university_id = $1 and role = 'student'",
+            [uid],
+          );
+          if (!r.rowCount) {
+            result.skipped.push(uid); // this id belongs to a non-student account
             continue;
           }
-          userId = ex.rows[0].id;
+          result.existing++;
         }
-        const en = await client.query(
+        const e = await client.query(
           "insert into enrollments (course_id, student_id) values ($1, $2) on conflict do nothing",
-          [id, userId],
+          [id, r.rows[0].id],
         );
-        enrolled += en.rowCount ?? 0;
+        result.enrolled += e.rowCount ?? 0;
       }
       await client.query("commit");
     } catch (e) {
@@ -115,6 +118,35 @@ export async function adminRoutes(app: FastifyInstance) {
     } finally {
       client.release();
     }
-    return { created, enrolled, skipped };
+    return result;
+  });
+
+  // One enrollment code for every student of the course who has no active device yet
+  app.post("/admin/courses/:id/enrollment-codes", { preHandler: adminOnly }, async (req) => {
+    const { id } = req.params as { id: string };
+    const { rows } = await pool.query(
+      `select u.id, u.university_id, u.full_name
+         from enrollments e join users u on u.id = e.student_id
+        where e.course_id = $1
+          and not exists (select 1 from credentials c where c.user_id = u.id and c.active)
+        order by u.university_id`,
+      [id],
+    );
+    const codes: { universityId: string; fullName: string; code: string }[] = [];
+    for (const u of rows) {
+      const code = randomBytes(6).toString("hex");
+      await pool.query(
+        `update enrollment_codes set expires_at = now()
+          where user_id = $1 and used_at is null and expires_at > now()`,
+        [u.id],
+      );
+      await pool.query(
+        `insert into enrollment_codes (code, user_id, expires_at)
+         values ($1, $2, now() + interval '7 days')`,
+        [code, u.id],
+      );
+      codes.push({ universityId: u.university_id, fullName: u.full_name, code });
+    }
+    return { codes };
   });
 }

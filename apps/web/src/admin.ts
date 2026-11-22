@@ -9,30 +9,36 @@ const loginErr = $("#loginErr");
 const whoEl = $("#who");
 const logoutBtn = $<HTMLButtonElement>("#logout");
 
-const pId = $<HTMLInputElement>("#pId");
+const pUid = $<HTMLInputElement>("#pUid");
 const pName = $<HTMLInputElement>("#pName");
+const pRole = $<HTMLSelectElement>("#pRole");
 const pPw = $<HTMLInputElement>("#pPw");
-const addProf = $<HTMLButtonElement>("#addProf");
-const profMsg = $("#profMsg");
-const profsEl = $("#profs");
+const pBtn = $<HTMLButtonElement>("#pBtn");
+const pMsg = $("#pMsg");
 
 const cCode = $<HTMLInputElement>("#cCode");
 const cTitle = $<HTMLInputElement>("#cTitle");
-const profSelect = $<HTMLSelectElement>("#profSelect");
+const cProf = $<HTMLSelectElement>("#cProf");
 const cCap = $<HTMLInputElement>("#cCap");
-const addCourse = $<HTMLButtonElement>("#addCourse");
-const courseMsg = $("#courseMsg");
+const cBtn = $<HTMLButtonElement>("#cBtn");
+const cMsg = $("#cMsg");
 const coursesEl = $("#courses");
 
-const manageSec = $("#manage");
-const manageTitle = $("#manageTitle");
+const detailEl = $("#detail");
+const detailTitle = $("#detailTitle");
 const importText = $<HTMLTextAreaElement>("#importText");
 const importBtn = $<HTMLButtonElement>("#importBtn");
 const importMsg = $("#importMsg");
-const codeMsg = $("#codeMsg");
-const studentsEl = $("#students");
+const codesBtn = $<HTMLButtonElement>("#codesBtn");
+const csvBtn = $<HTMLButtonElement>("#csvBtn");
+const codesOut = $("#codesOut");
+const studentRows = $("#studentRows");
 
-let current: { id: string; code: string; title: string } | null = null;
+type Course = { id: string; code: string; title: string; professor: string; students: number };
+type Code = { universityId: string; fullName: string; code: string };
+
+let selected: Course | null = null;
+let lastCodes: Code[] = [];
 
 async function api(path: string, init: RequestInit = {}) {
   const res = await fetch(`/api${path}`, {
@@ -47,7 +53,6 @@ async function api(path: string, init: RequestInit = {}) {
   if (!res.ok) throw new Error(body.error ?? String(res.status));
   return body;
 }
-
 const post = (path: string, data: unknown = {}) =>
   api(path, { method: "POST", body: JSON.stringify(data) });
 
@@ -59,29 +64,23 @@ function showLogin() {
 async function showApp(user: { fullName: string; role: string }) {
   if (user.role !== "admin") {
     await post("/auth/logout").catch(() => {});
-    loginErr.textContent = "This page is for administrators only.";
-    return showLogin();
+    showLogin();
+    loginErr.textContent = "This account is not an admin.";
+    return;
   }
   loginSec.hidden = true;
   appSec.hidden = false;
   whoEl.textContent = user.fullName;
-  await Promise.all([loadProfs(), loadCourses()]);
+  await Promise.all([loadProfessors(), loadCourses()]);
 }
 
-async function loadProfs() {
+async function loadProfessors() {
   const { users } = await api("/admin/users?role=professor");
-  profsEl.replaceChildren(
-    ...users.map((u: any) => {
-      const li = document.createElement("li");
-      li.textContent = `${u.university_id} – ${u.full_name}${u.has_password ? "" : " (no password)"}`;
-      return li;
-    }),
-  );
-  profSelect.replaceChildren(
+  cProf.replaceChildren(
     ...users.map((u: any) => {
       const o = document.createElement("option");
       o.value = u.id;
-      o.textContent = `${u.full_name} (${u.university_id})`;
+      o.textContent = `${u.university_id} – ${u.full_name}`;
       return o;
     }),
   );
@@ -90,67 +89,87 @@ async function loadProfs() {
 async function loadCourses() {
   const { courses } = await api("/admin/courses");
   coursesEl.replaceChildren(
-    ...courses.map((c: any) => {
+    ...courses.map((c: Course) => {
       const li = document.createElement("li");
       li.style.margin = "0.4rem 0";
-      li.append(
-        `${c.code} – ${c.title} | ${c.professor_name} | ${c.enrolled} students | capacity ${c.room_capacity ?? "-"}  `,
-      );
+      li.append(`${c.code} – ${c.title} (${c.professor}, ${c.students} students)  `);
       const b = document.createElement("button");
-      b.textContent = "Manage";
-      b.addEventListener("click", () => manage(c));
+      b.textContent = "Open";
+      b.addEventListener("click", () => selectCourse(c));
       li.append(b);
       return li;
     }),
   );
 }
 
-async function manage(c: { id: string; code: string; title: string }) {
-  current = c;
-  manageSec.hidden = false;
-  manageTitle.textContent = `${c.code} – ${c.title}`;
+async function selectCourse(c: Course) {
+  selected = c;
+  detailEl.hidden = false;
+  detailTitle.textContent = `${c.code} – ${c.title}`;
+  codesOut.textContent = "";
+  csvBtn.hidden = true;
   importMsg.textContent = "";
-  codeMsg.textContent = "";
   await loadStudents();
 }
 
+function td(text: string) {
+  const el = document.createElement("td");
+  el.textContent = text;
+  return el;
+}
+
 async function loadStudents() {
-  if (!current) return;
-  const { students } = await api(`/admin/courses/${current.id}/students`);
-  studentsEl.replaceChildren(
+  if (!selected) return;
+  const { students } = await api(`/admin/courses/${selected.id}/students`);
+  studentRows.replaceChildren(
     ...students.map((s: any) => {
       const tr = document.createElement("tr");
-      for (const text of [s.university_id, s.full_name, s.has_device ? "registered" : "not yet"]) {
-        const td = document.createElement("td");
-        td.style.padding = "0.4rem 0.2rem";
-        td.textContent = text;
-        tr.append(td);
-      }
-      const td = document.createElement("td");
+      tr.append(
+        td(s.university_id),
+        td(s.full_name),
+        td(s.has_device ? "yes" : "–"),
+        td(s.has_pending_code ? "yes" : "–"),
+      );
+      const last = document.createElement("td");
       const b = document.createElement("button");
-      b.textContent = "Enrollment code";
+      b.textContent = "New code";
       b.addEventListener("click", async () => {
         try {
           const { code } = await post(`/admin/users/${s.id}/enrollment-code`);
-          codeMsg.textContent = `Enrollment code for ${s.full_name}: ${code} (valid 24 h)`;
+          codesOut.textContent = `${s.university_id}  ${s.full_name}  ${code}`;
+          lastCodes = [{ universityId: s.university_id, fullName: s.full_name, code }];
+          csvBtn.hidden = false;
+          await loadStudents();
         } catch (e) {
-          codeMsg.textContent = `Error: ${(e as Error).message}`;
+          codesOut.textContent = `Error: ${(e as Error).message}`;
         }
       });
-      td.append(b);
-      tr.append(td);
+      last.append(b);
+      tr.append(last);
       return tr;
     }),
   );
 }
 
+function parseStudents(text: string) {
+  const out: { universityId: string; fullName: string }[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const i = line.search(/[,;\t]/);
+    if (i < 0) {
+      out.push({ universityId: line, fullName: "" });
+    } else {
+      out.push({ universityId: line.slice(0, i).trim(), fullName: line.slice(i + 1).trim() });
+    }
+  }
+  return out;
+}
+
 loginBtn.addEventListener("click", async () => {
   loginErr.textContent = "";
   try {
-    const user = await post("/auth/login", {
-      universityId: uidEl.value.trim(),
-      password: pwEl.value,
-    });
+    const user = await post("/auth/login", { universityId: uidEl.value.trim(), password: pwEl.value });
     pwEl.value = "";
     await showApp(user);
   } catch (e) {
@@ -160,63 +179,86 @@ loginBtn.addEventListener("click", async () => {
 
 logoutBtn.addEventListener("click", async () => {
   await post("/auth/logout").catch(() => {});
+  selected = null;
+  detailEl.hidden = true;
   showLogin();
 });
 
-addProf.addEventListener("click", async () => {
-  profMsg.textContent = "";
+pBtn.addEventListener("click", async () => {
   try {
-    await post("/admin/professors", {
-      universityId: pId.value,
+    await post("/admin/people", {
+      universityId: pUid.value,
       fullName: pName.value,
+      role: pRole.value,
       password: pPw.value,
     });
-    pId.value = pName.value = pPw.value = "";
-    profMsg.textContent = "Professor added.";
-    await loadProfs();
+    pMsg.textContent = `Added ${pUid.value} (${pRole.value}).`;
+    if (pRole.value === "professor") await loadProfessors();
+    pUid.value = pName.value = pPw.value = "";
   } catch (e) {
-    profMsg.textContent = `Error: ${(e as Error).message}`;
+    pMsg.textContent = `Error: ${(e as Error).message}`;
   }
 });
 
-addCourse.addEventListener("click", async () => {
-  courseMsg.textContent = "";
+cBtn.addEventListener("click", async () => {
   try {
-    const { id } = await post("/admin/courses", {
+    const course = await post("/admin/courses", {
       code: cCode.value.trim(),
       title: cTitle.value.trim(),
-      professorId: profSelect.value,
+      professorId: cProf.value,
     });
     if (cCap.value !== "") {
-      await post(`/admin/courses/${id}/capacity`, { roomCapacity: Number(cCap.value) });
+      await post(`/admin/courses/${course.id}/capacity`, { roomCapacity: Number(cCap.value) });
     }
+    cMsg.textContent = `Created ${cCode.value}.`;
     cCode.value = cTitle.value = cCap.value = "";
-    courseMsg.textContent = "Course added.";
     await loadCourses();
   } catch (e) {
-    courseMsg.textContent = `Error: ${(e as Error).message}`;
+    cMsg.textContent = `Error: ${(e as Error).message}`;
   }
 });
 
 importBtn.addEventListener("click", async () => {
-  if (!current) return;
-  const students = importText.value
-    .split("\n")
-    .map((line) => line.match(/^\s*([^,\t]+?)\s*[,\t]\s*(.+?)\s*$/))
-    .filter((m): m is RegExpMatchArray => m !== null)
-    .map((m) => ({ universityId: m[1], fullName: m[2] }));
-  if (students.length === 0) {
-    importMsg.textContent = 'Nothing to import. Use one "id, name" per line.';
-    return;
-  }
+  if (!selected) return;
   try {
-    const r = await post(`/admin/courses/${current.id}/import-students`, { students });
-    importMsg.textContent = `Created ${r.created}, enrolled ${r.enrolled}, skipped ${r.skipped}.`;
+    const r = await post(`/admin/courses/${selected.id}/import`, {
+      students: parseStudents(importText.value),
+    });
+    importMsg.textContent =
+      `New accounts: ${r.created}, already existing: ${r.existing}, newly enrolled: ${r.enrolled}` +
+      (r.skipped.length ? `, skipped: ${r.skipped.join(", ")}` : "");
     importText.value = "";
     await Promise.all([loadStudents(), loadCourses()]);
   } catch (e) {
     importMsg.textContent = `Error: ${(e as Error).message}`;
   }
+});
+
+codesBtn.addEventListener("click", async () => {
+  if (!selected) return;
+  try {
+    const { codes } = await post(`/admin/courses/${selected.id}/enrollment-codes`);
+    lastCodes = codes;
+    codesOut.textContent = codes.length
+      ? codes.map((c: Code) => `${c.universityId}  ${c.fullName}  ${c.code}`).join("\n")
+      : "Every student already has a device.";
+    csvBtn.hidden = codes.length === 0;
+    await loadStudents();
+  } catch (e) {
+    codesOut.textContent = `Error: ${(e as Error).message}`;
+  }
+});
+
+csvBtn.addEventListener("click", () => {
+  const q = (s: string) => `"${s.replace(/"/g, '""')}"`;
+  const csv =
+    "university_id,full_name,code\n" +
+    lastCodes.map((c) => [q(c.universityId), q(c.fullName), q(c.code)].join(",")).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  a.download = "enrollment-codes.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
 });
 
 api("/auth/me")
