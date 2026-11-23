@@ -1,7 +1,7 @@
-import Fastify from "fastify";
+import type { FastifyInstance } from "fastify";
+import cookie from "@fastify/cookie";
 import { pool } from "./db.js";
 import { adminRoutes } from "./routes/admin.js";
-import cookie from "@fastify/cookie";
 import { authRoutes } from "./routes/auth.js";
 import { reportRoutes } from "./routes/report.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
@@ -9,9 +9,7 @@ import { sessionRoutes } from "./routes/sessions.js";
 import { attendanceRoutes } from "./routes/attendance.js";
 import { enrollmentRoutes } from "./routes/enrollment.js";
 
-export function buildApp() {
-  const app = Fastify({ logger: true });
-
+export function registerApp(app: FastifyInstance) {
   app.get("/health", async () => ({
     status: "ok",
     time: new Date().toISOString(),
