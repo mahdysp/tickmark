@@ -1,5 +1,4 @@
 import { adminOnly } from "../lib/auth.js";
-import { adminOnly } from "../lib/auth.js";
 import type { FastifyInstance } from "fastify";
 import { randomBytes } from "node:crypto";
 import {
