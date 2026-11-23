@@ -34,3 +34,6 @@ btn.addEventListener("click", async () => {
     out.textContent = "Error: " + (e as Error).message;
   }
 });
+if ("serviceWorker" in navigator && import.meta.env.PROD) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
